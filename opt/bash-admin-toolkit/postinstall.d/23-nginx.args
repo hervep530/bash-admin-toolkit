@@ -1,0 +1,10 @@
+# Naming convention : xx-helpername.args
+# Sample config file : many sites per file - after chmod +x, this file will be used to set parameters with launching matching helper
+# Description : remove nginx site. For myargs-test only config will be removed. For test, both config and data will be cleaned
+# To remove, only site / nginx conf name and remove mode are needed
+# A new line is mandatory at the end of the file. Otherwise, the last args line will be omitted
+
+-v myargs-dev --remove config
+--vhost myargs-test -r data
+
+

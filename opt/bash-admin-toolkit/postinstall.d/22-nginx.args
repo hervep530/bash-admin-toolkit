@@ -1,0 +1,9 @@
+# Naming convention : xx-helpername.args
+# Sample config file : many sites per file - after chmod +x, this file will be used to set parameters with launching matching helper
+# Description : set new nginx site with hostname "myargs-dev" and "myargs-test", in "local" domain, and port 80
+# To create new site -r or --remove with false default value is not needed
+# A new line is mandatory at the end of the file. Otherwise, the last args line will be omitted
+
+-v myargs-dev -D local -p 80
+--vhost myargs-test --domain local --port 80
+
