@@ -29,18 +29,22 @@ source $LIB_DIR/nginx.lib.bash
 # Define and get options
 options=(["conf"]="" ["vhost"]="" ["domain"]="local" ["port"]="" ["ssl"]="autosign" ["overwrite"]="0"  ["remove"]="false" ["debug"]="0" ["help"]="0") ;
 m_opt=(["conf"]="conf" ["c"]="conf" ["vhost"]="vhost" ["v"]="vhost" ["domain"]="domain" ["D"]="domain" ["port"]="port" ["p"]="port" ["ssl"]="ssl" ["s"]="ssl" ["overwrite"]="overwrite"  ["o"]="overwrite"  ["remove"]="remove" ["r"]="remove" ["debug"]="debug" ["d"]="debug" ["help"]="help" ["h"]="help") ;
+
+# Input values from args (means arguments or command line options)
 get_options $@
 
-# Set values from cmdline options
 if [ -n "$(grep -E '\.conf' <<< ${options['conf']})" -a -f ${options["conf"]} ] ;then
+	# Input  values with sourcing .conf file
     source ${options["conf"]}
-    echo "$VHOST / $DOMAIN / $LISTEN_PORT / $REMOVE_MODE"
 else
+	# Input values from environment variables (see documentation for syntax)
     [[ "$REMOVE_MODE" != "" ]] || REMOVE_MODE=${options["remove"]}
     [[ "$VHOST" != "" ]] || VHOST=${options["vhost"]}
     [[ "$DOMAIN" != "" ]] || DOMAIN=${options["domain"]}
     [[ "$LISTEN_PORT" != "" ]] || LISTEN_PORT=${options["port"]}
+    [[ "$DEBUG_LEVEL" != "" ]] || DEBUG_LEVEL=${options["debug"]}
 fi
+# Other variables set
 WEBROOT="/var/www/$VHOST/html"
 LOGDIR="/var/www/$VHOST/logs"
 NGINX_CONF="$SITES_AVAILABLE/$VHOST"

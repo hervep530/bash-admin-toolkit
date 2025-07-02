@@ -12,51 +12,52 @@ DEBUG=0
 function install_service() {
     # $1 is service name
     if ! command -v $1 >/dev/null; then
-	echo "[+] Installation de $1 ..."
-	apt update
-	apt install -y $1
+		log_debug 1 "[+] Installation de $1 ..."
+		apt update
+		apt install -y $1
     else
-	echo "[i] $1 already installed..."
+		log_debug 1 "[i] $1 already installed..."
     fi
+    echo "[i] Nginx is installed and ready."
 }
 
 function get_options() {
     # Loop on each argument value - prefixed with - or -- it will consider as key, otherwise as a value
     index="";
     for arg in $@ ;do
-	if [ $(expr index $arg -) = 1 ] ; then
-	    if [ -n "$index" ] ;then
-		valeur="1" ;
-		if [ -n "$(echo $index | grep -e '^no')" ] ;then
-		    valeur="0" ;
-		    index=$(echo $index | sed -e 's/no//g') ;
+		if [ $(expr index $arg -) = 1 ] ; then
+			if [ -n "$index" ] ;then
+				valeur="1" ;
+				if [ -n "$(echo $index | grep -e '^no')" ] ;then
+					valeur="0" ;
+					index=$(echo $index | sed -e 's/no//g') ;
+				fi
+				if [ -v m_opt["$index"] ] ;then
+					[ -z "${m_opt[$index]}" ] || options[${m_opt[$index]}]=$valeur ;
+					[ "${options["debug"]}" == "0" ] || echo "==> options[\"${m_opt[$index]}\"] = ${options[${m_opt[$index]}]}" ;
+				fi
+			fi
+			index=$(echo $arg | sed -e 's/-//g') ;
+			[ "${options["debug"]}" != "3" ] || echo "$index // ${m_opt[$index]} // $arg" ;
+		else
+			if [ -n "$index" ] ;then
+				if [ -v m_opt["$index"] ] ;then
+					options[${m_opt[$index]}]=$arg ;
+					[ "${options["debug"]}" == "0" ] || echo "==> options[\"${m_opt[$index]}\"] = $arg" ;
+					[ "${options["debug"]}" != "3" ] || echo "$index // ${m_opt[$index]} // $arg" ;
+				fi
+				index="" ;
+			fi
 		fi
-		if [ -v m_opt["$index"] ] ;then
-		    [ -z "${m_opt[$index]}" ] || options[${m_opt[$index]}]=$valeur ;
-		    [ "${options["debug"]}" == "0" ] || echo "==> options[\"${m_opt[$index]}\"] = ${options[${m_opt[$index]}]}" ;
-		fi
-	    fi
-	    index=$(echo $arg | sed -e 's/-//g') ;
-	    [ "${options["debug"]}" != "3" ] || echo "$index // ${m_opt[$index]} // $arg" ;
-	else
-	    if [ -n "$index" ] ;then
-		if [ -v m_opt["$index"] ] ;then
-		    options[${m_opt[$index]}]=$arg ;
-		    [ "${options["debug"]}" == "0" ] || echo "==> options[\"${m_opt[$index]}\"] = $arg" ;
-		    [ "${options["debug"]}" != "3" ] || echo "$index // ${m_opt[$index]} // $arg" ;
-		fi
-		index="" ;
-	    fi
-	fi
     done
     # Loop ended, the last argument is processed separatly
     if [ -n "$index" ] ;then
-	valeur="1" ;
-	if [ -n "$(echo $index | grep -e '^no')" ] ;then
-	    valeur="0" ;
-	    index=$(echo $index | sed -e 's/no//g') ;
-	fi
-	[ -v m_opt["$index"] ] && options[${m_opt[$index]}]=$valeur ;
+		valeur="1" ;
+		if [ -n "$(echo $index | grep -e '^no')" ] ;then
+			valeur="0" ;
+			index=$(echo $index | sed -e 's/no//g') ;
+		fi
+		[ -v m_opt["$index"] ] && options[${m_opt[$index]}]=$valeur ;
     fi
 }
 
@@ -64,30 +65,31 @@ function get_options() {
 function add_iptables_rule() {
     local chain="$1"
     local rule="$2"
-    echo "chain = $chain / rule = $rule"
 
     if iptables -C "$chain" $rule 2>/dev/null; then
-        echo "[i] Règle déjà présente dans $chain : $rule"
+        log_debug 1 "[i] Rule already set in $chain : $rule"
     else
-        echo 'iptables -A "$chain" $rule'
-        echo "[+] Ajout règle iptables : $chain $rule"
+        iptables -A "$chain" $rule
+        log_debug 1 "[+] Add iptables rule : $chain $rule"
     fi
+    echo "[i] Firewall rule updated $chain : $rule"
 }
 
 # 💾 Persists iptables rules
 function save_iptables() {
-    echo "[*] Sauvegarde des règles iptables..."
+    log_debug 1 "[i] Save iptables rules..."
     netfilter-persistent save
 }
 
 # 🟢 Starting service (SysVinit)
 function start_service() {
     local svc="$1"
-    echo "svc = $svc"
 
-    echo "[*] Démarrage service $svc..."
+    log_debug 1 "[i] Start service $svc..."
     service "$svc" restart
     update-rc.d "$svc" defaults
+    
+    echo "[i] Service started : $svc"
 }
 
 function hosts_add() {
@@ -97,7 +99,7 @@ function hosts_add() {
     HOST_NAME=${FULL_NAME/.*/}
     DOMAIN_NAME=${FULL_NAME/*./}
     if [ $DOMAIN_NAME == $HOST_NAME ] ;then
-    DOMAIN_NAME="local"
+		DOMAIN_NAME="local"
     fi
     reference_line=$2
 
@@ -107,9 +109,9 @@ function hosts_add() {
         hosts_line=${hosts_new_position/:*/}
     fi
     if grep -qE "\s*$HOST_NAME[^\w-]*" $HOSTS_FILE ;then
-        echo "[i] $HOST_NAME already exists in $HOSTS_FILE..."
+        log_debug 1 "[i] $HOST_NAME already exists in $HOSTS_FILE..."
     else
-        echo "[+] Add $HOST_NAME in $HOSTS_FILE..."
+        log_debug 1 "[+] Add $HOST_NAME in $HOSTS_FILE..."
         number_pattern='^[0-9]+$'
         if [[ "$hosts_line" =~ $number_pattern ]] && [ $hosts_line -gt 0 ] ;then
             eval "sed -i '${hosts_line}a 127.0.0.1\t$HOST_NAME $HOST_NAME.$DOMAIN_NAME' $HOSTS_FILE"
@@ -117,6 +119,7 @@ function hosts_add() {
             echo "127.0.0.1	$HOST_NAME $HOST_NAME.$DOMAIN_NAME" >> $HOSTS_FILE
         fi
     fi
+    echo "[i] New vhost $HOSTNAME is in $HOSTS_FILE"
 }
 
 function hosts_remove() {
@@ -132,12 +135,14 @@ function hosts_remove() {
         hosts_line=${hosts_search/:*/}
         number_pattern='^[0-9]+$'
         if [[ "$hosts_line" =~ $number_pattern ]] && [ $hosts_line -gt 0 ] ;then
-        echo "[-] Remove $HOST_NAME from $HOSTS_FILE..."
+        log_debug 1 "[-] Remove $HOST_NAME from $HOSTS_FILE..."
             eval "sed -i '${hosts_line}d' $HOSTS_FILE"
         fi
     else
-        echo "[i] $HOST_NAME was not in $HOSTS_FILE..."
+        log_debug 1 "[i] $HOST_NAME was not in $HOSTS_FILE..."
     fi
+    
+    echo "[i] $HOST_NAME removed from $HOSTS_FILE..."
 }
 
 # 📝 Log simple
@@ -145,3 +150,22 @@ function log_step() {
     echo -e "\n===== $1 =====\n"
 }
 
+
+# Global debug level, 0 = off, 1 = info, 2 = verbose (to be defined with sourcing or environment variable): "${DEBUG_LEVEL:=0}"
+log_debug() {
+    local level=$1
+    shift
+    if (( DEBUG_LEVEL >= level )); then
+        echo "[DEBUG] $*"
+    fi
+}
+
+# Parse options["debug"] and overwrite DEBUG_LEVEL
+# Could replace : [[ "$DEBUG_LEVEL" != "" ]] || DEBUG_LEVEL=${options["debug"]}
+set_debug_level() {
+    if [[ "${options[debug]}" == "1" ]]; then
+        DEBUG_LEVEL=1
+    else
+        DEBUG_LEVEL=0
+    fi
+}
