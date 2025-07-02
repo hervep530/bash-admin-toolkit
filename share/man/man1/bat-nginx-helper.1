@@ -1,17 +1,90 @@
-bat-nginx-helper.sh(1)
-*TODO*
+.TH BAT-NGINX-HELPER 1 "2025-07-02" "bat-nginx-helper 0.1.0" "User Commands"
+.SH NAME
+bat-nginx-helper \- Manage NGINX virtual hosts: create, remove, configure SSL
+.SH SYNOPSIS
+.B bat-nginx-helper.sh
+[\fIoptions\fR]
+.SH DESCRIPTION
+This script manages NGINX virtual hosts via command line or configuration files.
 
+It supports creation and removal of sites, auto-generation of SSL certificates,
+addition to /etc/hosts, and firewall configuration.
 
-NAME
-       bat-nginx-helper.sh - Manage nginx vhost
+.SH OPTIONS
+.TP
+.B \-v, \-\-vhost \fIvhost\fR
+Virtual host name (required).
+.TP
+.B \-p, \-\-port \fIport\fR
+Listening port (e.g., 80 or 443).
+.TP
+.B \-D, \-\-domain \fIdomain\fR
+Domain suffix (default: local).
+.TP
+.B \-s, \-\-ssl \fIssl_mode\fR
+SSL mode. Default is autosign (self-signed certificate).
+.TP
+.B \-r, \-\-remove \fImode\fR
+Remove mode: 1 for config only, 2 for config, data, and SSL.
+.TP
+.B \-o, \-\-overwrite
+Overwrite existing site configuration (default: disabled).
+.TP
+.B \-c, \-\-conf \fIfile\fR
+Use configuration file for options.
+.TP
+.B \-d, \-\-debug
+Enable debug mode (not implemented).
+.TP
+.B \-h, \-\-help
+Show help and exit.
 
-SYNOPSIS
-       bat-nginx-helper.sh [-v] [-D] [-p] ....
+.SH USAGE EXAMPLES
+Create a new HTTPS site on port 443:
 
-DESCRIPTION
-       This  manual  page  documents 
-       
-OPTIONS
-       The  -v,  -D  and -p options ...
+.nf
+$ ./bat-nginx-helper.sh -v mysite -p 443
+.fi
 
+Remove site and associated data:
+
+.nf
+$ ./bat-nginx-helper.sh -r data -v mysite
+.fi
+
+Use external configuration file:
+
+.nf
+$ ./bat-nginx-helper.sh -c ./postinstall.d/20-nginx.conf
+.fi
+
+.SH FILES
+.TP
+.B /var/www/<vhost>/html
+Webroot directory.
+.TP
+.B /var/www/<vhost>/logs
+Logs directory.
+.TP
+.B /etc/nginx/sites-available/<vhost>
+NGINX site configuration file.
+.TP
+.B /etc/hosts
+Hosts file updated with virtual host entries.
+.TP
+.B /etc/ssl/<vhost>.crt, /etc/ssl/<vhost>.key
+Self-signed SSL certificate and key.
+
+.SH REQUIREMENTS
+Bash 4.0 or newer, nginx, openssl, sed, grep.
+
+.SH EXIT STATUS
+0 on success, non-zero on failure or invalid arguments.
+
+.SH AUTHOR
+Hervé Pineau
+<https://github.com/hervep530>
+
+.SH LICENSE
+Apache License 2.0
 
