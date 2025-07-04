@@ -25,23 +25,30 @@ It is designed to be reusable both in interactive use and in scripted automation
 
 ### Examples
 
-Create a new HTTPS site:
+#### Create a new HTTPS site
 
 ```bash
-./bat-nginx-helper.sh -v mysite -p 443
+./bat-nginx-helper.sh -v mysite -D mydomain -p 443
 ```
 
-Remove a site and its data:
+#### Remove a site and its data
 
 ```bash
-./bat-nginx-helper.sh -r data -v mysite
+./bat-nginx-helper.sh -d 1 -q 0 -r data -v mysite
 ```
 
-Use external config file:
+#### Use external config file
 
 ```bash
 ./bat-nginx-helper.sh -c ./postinstall.d/20-nginx.conf
 ```
+#### Use environment variables
+
+```bash
+DEBUG_LEVEL=2 QUIET=0 ./bat-nginx-helper.sh -v mywebsite -D mydomain -p 80
+DEBUG_LEVEL=1 QUIET=0 ./bat-nginx-helper.sh -c ./postinstall.d/20-nginx.conf
+```
+💡 *Last example is more relevant. It shows how to use DEBUGLEVEL and QUIET, when keeping default value in conf file, in case of tests. This command change comportment, without affecting settings in file.*
 
 ---
 
@@ -56,14 +63,17 @@ Use external config file:
 | `-r`  | `--remove`    | Remove mode (config : config only, data : all)    |
 | `-o`  | `--overwrite` | Overwrite existing site (default: 0)    |
 | `-c`  | `--conf`      | Use config file for options             |
-| `-d`  | `--debug`     | Enable debug mode (not yet implemented) |
+| `-d`  | `--debug`     | Enable debug mode [0|1|2] (default : 0) |
+| `-q`  | `--quiet`     | Doesn't display verbose system command message (default 1)|
+| `-f`  | `--force`     | Force script to continue even if a component failed (default : 0) |
+| `-i`  | `--safe-interactive` | If not force, prompt user to stop or continue (default : 0) |
 | `-h`  | `--help`      | Show help and exit                      |
 
 > ℹ️ All options can be provided via command-line or loaded from a `.conf` file.
 
 ---
 
-## ⚙️ Configuration File Support
+## ⚙️ Helper Configuration File Support
 
 A `.conf` file is a Bash script that defines variables like:
 
@@ -79,6 +89,37 @@ It is sourced with the `-c` flag:
 ```bash
 bat-nginx-helper.sh -c 20-nginx.conf
 ```
+
+---
+
+## ⚙️ Other environment variables 
+
+you will find below other environment variables and matching CLI options :
+
+|  env           | CLI options   | Values   | Description                             |
+| -------------- | ------------- | -------- | --------------------------------------- |
+| *VHOST*        | `--vhost`     | <vhost>  | Virtual host name (required)            |
+| *LISTEN_PORT*  | `--port`      | <port>   | Listening port (e.g. 80 or 443)         |
+| *DOMAIN*       | `--domain`    | <domain> | Domain suffix (default: `local`)        |
+| *SSL*          | `--ssl`       | [autosign Letsenc]  | SSL mode: `autosign`, `none`, etc.      |
+| *REMOVE_MODE*  | `--remove`    | [config data]  | Remove mode (config : config only, data : all)    |
+| *OVERWRITE*    | `--overwrite` | [0 1]    | Overwrite existing site (default: 0)    |
+|                | `--conf`      | <path>   | Use config file for options             |
+| **DEBUG_LEVEL** | `--debug`     | [0 1 2]  | Enable debug mode [0|1|2] (default : 0) |
+| **QUIET**       | `--quiet`     | [0 1]    | Doesn't display verbose system command message (default 1)|
+| **FORCE**       | `--force`     | [0 1]    | Force script to continue even if a component failed (default : 0) |
+| **SAFE_INTERACTIVE** | `--safe-interactive` | [0 1]  | If not force, prompt user to stop or continue (default : 0) |
+|                | `--help`      | [0 1]    | Show help and exit                      |
+
+
+It will be used alternatively with launcher (why not helper), to modify a default comportment, without changing source code.
+In italic, variables are dedicated to helper, and will vary. In bold, variable are generic and should be implemented for all helpers. The common library provides utility to manage it without difficulty.
+
+```bash
+sudo /bin/bash -c "PREFIX=/usr/local TRIGGER_DIR=/etc/myfirewall.d /opt/bash-admin-toolkit/launcher.sh"
+DEBUG_LEVEL=2 bat-nginx-helper.sh -c 10-nginx.conf
+```
+> ℹ️ *Remark : use of sudo is depending of helper actions. With bat-nginx-helper, it's necessary, because of services and system management (/etc/hosts,...). But keep in mind that it would be not recommended for all tasks (video or graphic tools for example)*
 
 ---
 
@@ -102,12 +143,51 @@ If HTTPS (`443`) is detected:
 
 ---
 
-## 🔄 Remove Mode (`-r` / `--remove`)
+## 🔄 Options codification
+  
+### Remove Mode (`-r` / `--remove`/ `REMOVE_MODE`)
 
-| Value | Description                  |
-| ----- | ---------------------------- |
-| `1`   | Remove config only           |
-| `2`   | Remove config, data, and SSL |
+|  Value   | Description                  |
+| -------- | ---------------------------- |
+| `config` | Remove config only           |
+| `data`   | Remove config, data, and SSL |
+
+---
+
+### Message - Debug level ( `-d` / `--debug` / `DEBUG_LEVEL`)
+
+|  Value   | Description                  |
+| -------- | ---------------------------- |
+| `0`      | Off                          |
+| `1   `   | Debug                        |
+| `2   `   | Verbose                        |
+
+---
+
+### Message - Quiet ( `-q` / `--quiet` / `QUIET`)
+
+|  Value   | Description                                |
+| -------- | ------------------------------------------ |
+| `0`      | Displays command stdout and stderr        |
+| `1   `   | Doesn't display command  stderr (TODO : route to a log file|
+
+---
+
+### Handle error - Force ( `-f` / `--force` / `FORCE`)
+
+|  Value   | Description                                |
+| -------- | ------------------------------------------ |
+| `0`      | Exit or manage error interactivly          |
+| `1   `   | Continue after error                       |
+
+---
+
+### Handle error - Safe interactive ( `-i` / `--safe-interactive` / `SAFE_INTERACTIVE`)
+
+|  Value   | Description                                       |
+| -------- | ------------------------------------------------- |
+| `0`      | Exit without prompting                            |
+| `1`      | Prompt to continue or not when exit code is not 0 |
 
 ---
 
@@ -127,9 +207,9 @@ If HTTPS (`443`) is detected:
 
 ## 📘 Notes
 
-* The script exits on first error (`set -e`)
+* The script offer flexibility with handling error. When returns status not 0, you have options to stop all, continue anyway, or prompt user
 * Automatically installs NGINX if missing
-* All output is minimal by design, but could be enhanced with debug modes later
+* All output is minimal by design, but could be enhanced with debug modes
 
 ---
 
