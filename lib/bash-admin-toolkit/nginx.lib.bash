@@ -13,18 +13,34 @@ function site_exists() {
     fi
 }
 
+# Get listen port in nginx conf (default 80 if not found)
+function get_nginx_listen_port() {
+    if [ -n $NGINX_CONF -a -f $NGINX_CONF ] ;then
+		grep -E "listen\s*[0-9]+\s*" $NGINX_CONF | sed -e 's/.*listen\s*\([0-9]\+\).*/\1/g' 
+    else
+		echo "80"
+    fi
+}
+
 # Config new site in Nginx 
 function create_site() {	
-	log_debug 1 "[+] Create web folders..."
-	mkdir -p "$WEBROOT" "$LOGDIR"
+	log_debug 2 "[+] Create web folders..."
+	safe_run_without_success "write of $NGINX_CONF" mkdir -p "$WEBROOT" "$LOGDIR"
 
-	log_debug 1 "[+] Create index page for test..."
-	[ -f $WEBROOT/index.html ] || echo "<h1>Http web site test : $VHOST</h1>" > "$WEBROOT/index.html"
+	log_debug 2 "[+] Create index page for test..."
+	[ -f $WEBROOT/index.html ] || safe_run_without_success "sample index creation" echo "<h1>Http web site test : $VHOST</h1>" > "$WEBROOT/index.html"
 
-	log_debug 1 "[+] Set new virtual host in Nginx : $VHOST..."
+	log_debug 2 "[+] Set new virtual host in Nginx : $VHOST..."
 	http_pattern='.*80.*'
     if [[ "$LISTEN_PORT" =~ $http_pattern ]] ;then
-	    [ -f $NGINX_CONF ] || cat <<EOF > "$NGINX_CONF"
+	    safe_run_without_success "write of $NGINX_CONF" write_conf_without_ssl
+	        else
+	    safe_run_without_success "write of $NGINX_CONF" write_conf_with_ssl
+    fi
+}
+
+function write_conf_without_ssl() {
+	[ -f $NGINX_CONF ] || cat <<EOF > "$NGINX_CONF"
 server {
     listen $LISTEN_PORT;
     listen [::]:$LISTEN_PORT;
@@ -42,8 +58,10 @@ server {
     }
 }
 EOF
-    else
-	    [ -f $NGINX_CONF ] || cat <<EOF > "$NGINX_CONF"
+}
+
+function write_conf_with_ssl() {
+	[ -f $NGINX_CONF ] || cat <<EOF > "$NGINX_CONF"
 server {
     listen $LISTEN_PORT ssl;
     server_name $VHOST $VHOST.$DOMAIN www.$VHOST.$DOMAIN;
@@ -62,18 +80,18 @@ server {
     }
 }
 EOF
-
-    fi
-    echo "[i] New nginx virtual host created : $VHOST"
 }
 
-# Get listen port in nginx conf (default 80 if not found)
-function get_nginx_listen_port() {
-    if [ -n $NGINX_CONF -a -f $NGINX_CONF ] ;then
-		grep -E "listen\s*[0-9]+\s*" $NGINX_CONF | sed -e 's/.*listen\s*\([0-9]\+\).*/\1/g' 
-    else
-		echo "80"
-    fi
+# Activate Nginx site
+function activate_site() {
+	log_debug 2 "[+] Enable nginx virtual host..."
+	[ -f $SITES_ENABLED/$VHOST ] || ln -sf $NGINX_CONF $SITES_ENABLED/$VHOST
+
+	log_debug 2 "[+] Check nginx settings..."
+	safe_run_without_success "nginx settings check" nginx -t
+
+	log_debug 2 "[+] Restart nginx (SysVinit)..."
+	safe_run_without_success "restart of nginx service" start_service nginx
 }
 
 # Remove site
@@ -82,37 +100,20 @@ function remove_site() {
 	webroot=$(grep "root" $NGINX_CONF | sed -e 's/.*root\s*\(\/.*\)\s*\;/\1/g')
 	logdir=$(grep "error_log" $NGINX_CONF | sed -e 's/.*error_log\s*\(\/.*\)\/[^/]*\.log.*/\1/g')
 
-	log_debug 1 "[-] Remove nginx site config..."
-	[ -f  ] && rm $SITES_ENABLED/$VHOST
+	log_debug 2 "[-] Remove nginx site config..."
+	[ -f $SITES_ENABLED/$VHOST ] && rm $SITES_ENABLED/$VHOST
 	[ -f $NGINX_CONF ] && rm $NGINX_CONF
-	service nginx restart
+	safe_run_without_success "restart of nginx service" start_service nginx
 
     if [ "$REMOVE_MODE" == "data" ] ;then
-        log_debug 1 "[-] Remove site data..."
-        rm -r $webroot $logdir
+        log_debug 2 "[-] Remove site data..."
+        safe_run_without_success "site data removal" rm -r $webroot $logdir
 	fi
-		
-	echo "[i] Nginx virtual host removed: $VHOST"
-}
-
-# Activate Nginx site
-function activate_site() {
-	log_debug 1 "[+] Enable nginx virtual host..."
-	[ -f $SITES_ENABLED/$VHOST ] || ln -sf $NGINX_CONF $SITES_ENABLED/$VHOST
-
-	log_debug 1 "[+] Check nginx settings..."
-	nginx -t
-
-	log_debug 1 "[+] Restart nginx (SysVinit)..."
-	service nginx restart
-	update-rc.d nginx defaults
-
-	echo "[i] New nginx virtual host activated : $VHOST"
 }
 
 # Set Firewall rules
 function append_firewall_rules() {
-	log_debug 1 "[+] Ajout des règles iptables pour le port ${LISTEN_PORT}..."
+	log_debug 2 "[+] Add iptables rules for port ${LISTEN_PORT}..."
 
 	iptables -C INPUT -p tcp --dport $LISTEN_PORT -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null || \
 	iptables -A INPUT -p tcp --dport $LISTEN_PORT -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
@@ -120,10 +121,7 @@ function append_firewall_rules() {
 	iptables -C OUTPUT -p tcp --sport $LISTEN_PORT -m conntrack --ctstate ESTABLISHED -j ACCEPT 2>/dev/null || \
 	iptables -A OUTPUT -p tcp --sport $LISTEN_PORT -m conntrack --ctstate ESTABLISHED -j ACCEPT
 
-	log_debug 1 "[+] Sauvegarde des règles iptables..."
-	netfilter-persistent save
-
-	echo "[i] Firewall rules set for port ${LISTEN_PORT}"
+	safe_run_without_success "save of iptables rules" netfilter-persistent save
 }
 
 # Display help
