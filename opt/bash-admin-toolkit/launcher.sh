@@ -48,40 +48,38 @@ function get_trigger_type() {
     echo "$trigger_type"
 }
 
-
 for trigger in $(ls -1 $TRIGGER_DIR) ;do
 # cmd_line_option=$(parm_to_args $parm_values)
     ls -l $TRIGGER_DIR/$trigger
     trigger_type=$(get_trigger_type $trigger)
     case $trigger_type in
-	"args" ) 
-	    # For each valid line (matches with args pattern), launch helper with arguments from line
-	    while IFS= read -r args ;do
-		if [[ "$args" =~ $ARGS_GREP_PATTERN ]] ;then
-		    # clean options and call helper
-		    cmd_line_option=$(eval "sed -e 's/$SEPARATOR_SED_PATTERN/ /g' <<< \"$args\"")
-		    echo "[i] Launch helper"
-		    $(get_helper_path $trigger) $cmd_line_option 
-		fi
-	    done < $TRIGGER_DIR/$trigger ;;
-	"env" ) 
-	    # For each valid line (matches with env pattern), launch helper with command environment variable from line
-	    while IFS= read -r env_line ;do
-		if [[ "$env_line" =~ $ENV_GREP_PATTERN ]] ;then
-		    # clean environnement variables, and call helper
-		    env_variables=$(eval "sed -e 's/$SEPARATOR_SED_PATTERN/ /g' <<< \"$env_line\"")
-		    echo "[i] Launch helper"
-		    /bin/bash -c "$env_variables $(get_helper_path $trigger)" 
-		fi
-	    done < $TRIGGER_DIR/$trigger ;;
-	"conf" ) 
-	    echo "[i] Launch helper with parameter from config file :$TRIGGER_DIR/$trigger"
-	    $(get_helper_path $trigger) -c $TRIGGER_DIR/$trigger ;;
-	"sh" )
-	    echo "[i] Launch helper"
-	    /bin/bash $TRIGGER_DIR/$trigger ;;
-	* ) echo "$trigger_type";;
+    "args" ) 
+        # For each valid line (matches with args pattern), launch helper with arguments from line
+        while IFS= read -r args ;do
+	if [[ "$args" =~ $ARGS_GREP_PATTERN ]] ;then
+	    # clean options and call helper
+	    cmd_line_option=$(eval "sed -e 's/$SEPARATOR_SED_PATTERN/ /g' <<< \"$args\"")
+	    export LAUNCHER_COMMAND="$(get_helper_path $trigger) $cmd_line_option"
+	    $(get_helper_path $trigger) $cmd_line_option 
+	fi
+        done < $TRIGGER_DIR/$trigger ;;
+    "env" ) 
+        # For each valid line (matches with env pattern), launch helper with command environment variable from line
+        while IFS= read -r env_line ;do
+	if [[ "$env_line" =~ $ENV_GREP_PATTERN ]] ;then
+	    # clean environnement variables, and call helper
+	    env_variables=$(eval "sed -e 's/$SEPARATOR_SED_PATTERN/ /g' <<< \"$env_line\"")
+	    export LAUNCHER_COMMAND="/bin/bash -c \"$env_variables $(get_helper_path $trigger)\""
+	    /bin/bash -c "$env_variables $(get_helper_path $trigger)" 
+	fi
+        done < $TRIGGER_DIR/$trigger ;;
+    "conf" ) 
+	export LAUNCHER_COMMAND="$(get_helper_path $trigger) -c $TRIGGER_DIR/$trigger"
+        $(get_helper_path $trigger) -c $TRIGGER_DIR/$trigger ;;
+    "sh" )
+	export LAUNCHER_COMMAND="/bin/bash $TRIGGER_DIR/$trigger"
+        /bin/bash $TRIGGER_DIR/$trigger ;;
+    * ) echo "$trigger_type";;
     esac
 done
-
 
